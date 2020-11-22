@@ -1,0 +1,237 @@
+---
+title: "Regression Project"
+output: pdf_document
+---
+```{r}
+library(ggplot2)
+library(readr)
+library(car)
+library(lmtest)
+library(dplyr)
+library(Matrix)
+
+columns <- c("Sex","Length", "Diameter", "Height", "Whole_wt", "Shuck_wt", "Visc_wt", "Shell_wt", "Rings")
+
+abalone <- read_csv("https://archive.ics.uci.edu/ml/machine-learning-databases/abalone/abalone.data",col_names=columns)
+
+abalone$Sex <- as.factor(abalone$Sex)
+abalone
+
+set.seed(42)
+#Splitting dataset in train and test using 70/30 method
+indexes <- sample(1:nrow(abalone), size = 0.3 * nrow(abalone))
+abalone_train <- abalone[-indexes,]
+abalone_test <- abalone[indexes,]
+
+```
+
+
+```{r}
+#Q1
+rankMatrix(abalone[,2:8])[1]
+
+```
+$$ Age = \beta_0 + \beta_1 Height+\epsilon $$ with P1-P4 and full rank assumption
+
+with the rank assumption and under P1-P4 which are:
+P1: Errors are centered
+P2: The model is homoscedastic. Variance of all the error terms are same.
+P3: Errors are uncorrelated.
+P4: Errors are gaussian.
+We also assume that no high leverage outliers are present.
+In order to study those hypothesis, we’ll be visualing the regression line and then the residuals graphically to observe if they satisfy our assumptions. We’ll also build the following tests to further investigate the postulates 2,3 and 4:
+Breush-Pagan test for P2,
+Durbin-Watson test for P3,
+Shapiro-Wilks test for P4
+We’ll check if our full rank assumption is met.
+We will also be computing the Cook distances to detect if there are outliers that change too much our estimations for beta’s.
+Finally, we’ll build confidence intervals for the betas to study the efficiency of the model.
+
+```{r}
+#Q2
+
+summary(abalone)
+
+diag(var(abalone))
+sqrt(diag(var(abalone)))
+
+par(mfrow=c(2,2))
+for (i in 2:ncol(abalone)){
+  boxplot(abalone[i], boxwex=0.5, cex.axis=0.75, main=colnames(abalone[i]))
+}
+
+par(mfrow=c(2,2))
+for (i in 2:ncol(abalone)){
+  hist(unlist(abalone[i]), main=colnames(abalone[i]))
+}
+
+```
+Considering the boxplots of all the features in the dataset, all the variables present outliers (by the definition of quantiles and interquantile range). Height has two significant outliers. In addition, The medians of the various different types of weights are more or less close to each other. 
+
+Considering the Histograms, It's easy to see how the distribution of Rings is more or less centered, the Length and the Diameter are left skewed (the frequency of larger values is bigger), while all the others present are right skewed (frequency of smaller values is bigger).
+
+```{r}
+#Q3
+
+plot(Rings ~ Length + Diameter + Height + Whole_wt + Shuck_wt + Visc_wt + Shell_wt, data=abalone_train)
+
+```
+We can graphically see the positive correlation between Rings (and consequently, age of Abalone) and Height, confirming the biologists’ hypothesis. In general, from the scatter plots, we can also see that there are linear correlations between Rings and other variables such as Length and Shell Weight. 
+
+```{r}
+#Q4
+
+linear_mod = lm(Rings ~ Height, data=abalone_train)
+summary(linear_mod)
+
+```
+
+```{r}
+#Q5
+
+ggplot(abalone_train, aes(x=Height, y=Rings)) + geom_point(shape=1) + geom_smooth(method=lm)
+
+```
+From the graph can be seen that are present two outliers of the predictor Height. Those two points are high leverage and are affecting the fit of the line. The line doesn't seem to be the best fit. Taking a polynomial or exponential function of Height might provide a better fit.
+
+```{r}
+#Q6
+
+plot(linear_mod)
+durbinWatsonTest(linear_mod, max.lag=10)
+acf(resid(linear_mod))
+bptest(linear_mod)
+shapiro.test(resid(linear_mod))
+
+```
+The errors are not centered since the Residuals-Fitted graph does not have a line which on average is zero due to the presence of two outliers in the data.
+The errors are Gaussian  in the lower quantiles since in the Normal Q-Q plot more or less lies on the line that represent the quantiles of the standard normal. The plot diverges at higher quantiles, suggesting that we could perform feature engineering. The results of the Shapiro-Wilkes test also do not suggest Gaussian distribution of residuals.
+Possibly due to the presence of outliers, there is heteroskedasticity since the line in the Scale-Location plot is really far from being horizontal. In addition, the studentized Breusch-Pagan test has a very low p-value, so there is high probability of heteroskedasticity. 
+The results of Durbin-Watson test suggest autocorrelation. This may be due to ordering in the data. 
+
+```{r}
+#we remove the two outliers and sort the data randomly
+new_abalone_train = abalone_train[-c(961, 1425),]
+
+set.seed(1234)
+new_abalone_train = new_abalone_train[sample(nrow(new_abalone_train)), ]
+
+linear_mod_new = lm(Rings ~ Height, data=new_abalone_train)
+summary(linear_mod_new)
+plot(linear_mod_new)
+
+durbinWatsonTest(linear_mod_new, max.lag=10)
+acf(resid(linear_mod_new))
+bptest(linear_mod_new)
+shapiro.test(resid(linear_mod_new))
+
+ggplot(new_abalone_train, aes(x=Height, y=Rings)) + geom_point(shape=1) + geom_smooth(method=lm)
+
+```
+We removed the outliers sequentially till none of the points have Cook's distance greater than 1 
+From the new graph we can see that the elimination of the outliers allow us to better satisfy the postulates. The errors are more centered since the red line in the residuals vs fitted plot is on average more close to 0. 
+However, we still see some trend in the variance of the residuals. Furthermore, the results of the B-P test also suggest that there exists heteroskedasticity.
+The results of the Q-Q plot and the S-W test suggest that the residuals do not follow a Gaussian Distribution.
+Sorting the data seems to have removed the apparent autocorrelation in the residual terms as seen from the results of the D-W test.
+
+```{r}
+#here we used the logarithm of the number of Rings to get a better fit
+new_abalone_train$log_rings = log(new_abalone_train$Rings)
+
+linear_mod_log_simple = lm(log_rings ~ Height, data=new_abalone_train)
+summary(linear_mod_log_simple)
+plot(linear_mod_log_simple)
+durbinWatsonTest(linear_mod_log_simple, max.lag=10)
+acf(resid(linear_mod_log_simple))
+bptest(linear_mod_log_simple)
+shapiro.test(resid(linear_mod_log_simple))
+
+ggplot(new_abalone_train, aes(x=Height, y=log_rings)) + geom_point(shape=1) +geom_smooth(method=lm)
+
+```
+We decided to use the logarithm of the Rings as the response variable. This appears to better satisfy the postulate of homoskedasticity as seen from the results of the results of the B-P test. It also seems to better satisfy the condition of Gaussian distribution of residuals as we get a better value of the S-W statistic. Lastly, we observe a better fit as seen from the graph.
+
+```{r}
+#Q7
+confint(linear_mod_log, level=0.95)
+
+```
+In the context of the problem, these confidence intervals (of the coefficients) means that an additional unit change in Height will change the response variable (number of rings or its logarithm) by a value present in the confidence interval 95% of the times (so with 95% confidence).
+
+```{r}
+#Q8
+```
+As the p-value is much less that an hypothetical 0.05 alpha, we reject the null hypothesis that $\beta_1 = 0$. Hence, there is a statistically significant relationship between the Height and the number of rings. 
+```{r}
+#PART 2 
+#ASK TO THE PROFESSOR IF WE HAVE TO CREATE ANOTHER FILE FROM NOW ON AND NOT CONTINUE ON THIS ONE (MAYBE IMPORTING THINGS FROM THE FIRST FILE LIKE WE DO IN PYTHON)
+
+#Q9
+library(ggplot2)
+library(GGally)
+
+ggpairs(new_abalone_train, title="Pairs plot for abalone dataset") + theme_grey(base_size = 8)
+```
+
+```{r}
+new_abalone_scale = rapply(new_abalone_train, scale, c("numeric","integer"), how="replace")
+
+linear_mod_log = lm(log_rings ~ Height + Whole_wt + Length, data=new_abalone_scale)
+summary(linear_mod_log)
+plot(linear_mod_log)
+durbinWatsonTest(linear_mod_log, max.lag=10)
+acf(resid(linear_mod_log))
+bptest(linear_mod_log)
+shapiro.test(resid(linear_mod_log))
+
+ggplot(new_abalone_train, aes(x=Height, y=log_rings)) + geom_point(shape=1) +geom_smooth(method=lm)
+
+```
+We decided to keep as dependent variable the logarithm of the number of rings, since we saw that the postulate are more close to being met with this manipulation. First of all, we started fitting a model with all the variables to check those that we need to keep and those that we need to delete. However, we will first remove the point which has a Cook distance greater than 1 (which is the same outlier that we also removed before) and, in addition, we remove also another observation which has a Cook distance between 0.5 an 1. Even if this observation can be left in the model we decided to remove it since it has a big impact on the verification of the postulates. In addition, we need to remove it to have a dataset of a dimension that is the same of the one on which we performed the simple linear model. This last manipulation is necessary in order to perform the Anova and Ancova. 
+```{r}
+
+linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Visc_wt + Shell_wt + Length, data=new_abalone_scale)
+summary(linear_mod_log)
+plot(linear_mod_log)
+durbinWatsonTest(linear_mod_log, max.lag=10)
+acf(resid(linear_mod_log))
+bptest(linear_mod_log)
+shapiro.test(resid(linear_mod_log))
+
+ggplot(new_abalone_train, aes(x=Height, y=log_rings)) + geom_point(shape=1) +geom_smooth(method=lm)
+
+```
+```{r}
+# To perform transform some variables, add/delete some variables and recheck until acceptable model
+# here we can perform an algorithm to choose the regressors, like checking the R square of all the possible combinations (before / after doing manipulations to meet postulates ? ). or maybe we can do it directly with anova
+
+#MAYBE WE DON'T HAVE TO CHOOSE THE BEST MODEL NOW AND JUST MEET THE POSTULATES(SINCE THE MODEL SELECTION IS DONE IN PART 3 )
+
+```
+
+```{r}
+#Q10
+
+#PUT HERE AGAIN THE SUMMARY OF OUR LAST MODEL OF WE JUST REFER TO PREVIOUS COMPUTATIONS ? 
+summary(linear_mod_log)
+```
+To check which variables have a significant impact on the target variable (number of rings), we look at the p-values of the t-tests. If the p-value of the single variable is low it means that at a specific significance level the variable has a significant impact on the number of rings. 
+```{r}
+#Q11
+
+anova(linear_mod_new, linear_mod_log)
+
+```
+```{r}
+#Q12 
+
+boxplot(filter(new_abalone,Sex=='M')$Rings)
+boxplot(filter(new_abalone,Sex=='F')$Rings)
+
+ggplot(new_abalone, aes(x=Sex, y=Rings)) + geom_boxplot()
+
+#to the ancova for Sex i think we should use ancova function since we fitted the model with multiple regressors not only the categorical variable (Sex) and the output does not show the values just for that regressor
+
+anova(linear_mod_new, linear_mod_log)
+```
+
