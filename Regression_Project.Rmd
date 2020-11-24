@@ -9,6 +9,7 @@ library(car)
 library(lmtest)
 library(dplyr)
 library(Matrix)
+library(DAAG)
 
 columns <- c("Sex","Length", "Diameter", "Height", "Whole_wt", "Shuck_wt", "Visc_wt", "Shell_wt", "Rings")
 
@@ -162,29 +163,34 @@ In the context of the problem, these confidence intervals (of the coefficients) 
 #Q8
 ```
 As the p-value is much less that an hypothetical 0.05 alpha, we reject the null hypothesis that $\beta_1 = 0$. Hence, there is a statistically significant relationship between the Height and the number of rings. 
+
+==================================================================================================================================================================================
+
+
 ```{r}
 #PART 2 
-#ASK TO THE PROFESSOR IF WE HAVE TO CREATE ANOTHER FILE FROM NOW ON AND NOT CONTINUE ON THIS ONE (MAYBE IMPORTING THINGS FROM THE FIRST FILE LIKE WE DO IN PYTHON)
 
 #Q9
 library(ggplot2)
 library(GGally)
 
 ggpairs(new_abalone_train, title="Pairs plot for abalone dataset",progress = F) #+ theme_grey(base_size = 8)
+
 ```
 ```{r}
 library(corrplot)
-withoutSex = new_abalone_train %>% select(!c(Sex))
+withoutSex = new_abalone_train[-1]
 corrplot(cor(withoutSex), method = "ellipse")
+
 ```
 We decided to keep as dependent variable the logarithm of the number of rings, since we saw that the postulate are more close to being met with this manipulation. First of all, we started fitting a model with all the variables to check those that we need to keep and those that we need to delete. However, we will first remove the point which has a Cook distance greater than 1 (which is the same outlier that we also removed before) and, in addition, we remove also another observation which has a Cook distance between 0.5 an 1. Even if this observation can be left in the model we decided to remove it since it has a big impact on the verification of the postulates. In addition, we need to remove it to have a dataset of a dimension that is the same of the one on which we performed the simple linear model.This last manipulation is necessary in order to perform the Anova and Ancova.
 
-
-
 In addition to the Height, the features we have chosen to use in our first model are: Diameter and Whole_wt. As Diameter is highly correlated with Length ( but have a better correlation with log_rings) and Whole_wt is highly correlated with the other three weight features.
+
 ```{r}
 new_abalone_scale = data.frame(rapply(new_abalone_train, scale, c("numeric","integer"), how="replace"))
 head(new_abalone_scale)
+
 ```
 
 ```{r}
@@ -197,7 +203,8 @@ bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
 
 ```
-This models meets the validity postulates. However, we try another model where we replace Whole_wt by Shuck_wt , Visc_wt and Shell_wt to see if this model better explains the number of rings and to see if one of these features has more impact than the other ones.
+This models meets the validity postulates. However, we try another model where we replace Whole_wt by Shuck_wt , Visc_wt, and Shell_wt to see if this model better explains the number of rings and to see if one of these features has more impact than the other ones.
+
 ```{r}
 linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Visc_wt + Shell_wt + Diameter, data=new_abalone_scale)
 summary(linear_mod_log)
@@ -206,8 +213,9 @@ durbinWatsonTest(linear_mod_log, max.lag=10)
 acf(resid(linear_mod_log))
 bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
+
 ```
-This models meets the validity postulates. We can reject the null hypothesis for Visc_wt as its p_value= 0.0731 > 5%. So we make a new model without it.
+This models meets the validity postulates. We can reject the null hypothesis for Visc_wt as its p_value= 0.0731 > 0.05, so we make a new model without it.
 
 ```{r}
 linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Shell_wt + Diameter, data=new_abalone_scale)
@@ -217,59 +225,43 @@ durbinWatsonTest(linear_mod_log, max.lag=10)
 acf(resid(linear_mod_log))
 bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
+
 ```
 
- This models meets the validity postulates. The Adjusted R-squared of this model is 0.5748 > 0.4901 ( Adjusted R-squared of the first model). 
+This models meets the validity postulates. The Adjusted R-squared of this model is 0.5748 > 0.4901 (Adjusted R-squared of the first model). 
 
 After many tests we decided to implement a model with polynomial features
+
 ```{r}
-linear_mod_log = lm(log_rings ~ poly(Diameter, 3) + poly(Height, 3) + poly(Shuck_wt, 3) + poly(Shell_wt, 3), data=new_abalone_scale)
+linear_mod_log = lm(log_rings ~ poly(Diameter, 3) + Height + poly(Shuck_wt, 3) + poly(Shell_wt, 3), data=new_abalone_scale)
 summary(linear_mod_log)
 plot(linear_mod_log)
 durbinWatsonTest(linear_mod_log, max.lag=10)
 acf(resid(linear_mod_log))
 bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
+
 ```
 ```{r}
 #Q10
 ```
-To check which variables have a significant impact on the target variable (number of rings), we look at the p-values of the t-tests. If the p-value of the single variable is low it means that at a specific significance level the variable has a significant impact on the number of rings. Some of the covariates are not significant so we performed test with other models to obtain an high R adjusted but also low p-values for the t-test. 
+To check which variables have a significant impact on the target variable (number of rings), we look at the p-values of the t-tests. If the p-value of the single variable is low it means that at a specific significance level the variable has a significant impact on the number of rings. In our final model, we observe that all the covariates are significant at a significance level of 0.05.
 
-```{r}
-new_abalone_scale$Shell_wt2=new_abalone_scale$Shell_wt^2
-new_abalone_scale$Shell_wt3=new_abalone_scale$Shell_wt^3
-new_abalone_scale$Shuck_wt2=new_abalone_scale$Shuck_wt^2
-new_abalone_scale$Diameter2=new_abalone_scale$Diameter^2
-new_abalone_scale$Diameter3=new_abalone_scale$Diameter^3
+Through the use of polynomial features we slightly improved all the postulates. The errors are centered, normal, and less correlated than before and the model is homokedastic.
 
-linear_mod_log = lm(log_rings ~ Height + Shell_wt + Shell_wt2 + Shell_wt3 + Shuck_wt + Shuck_wt2 + Diameter2 + Diameter3, data=new_abalone_scale)
-summary(linear_mod_log)
-plot(linear_mod_log)
-durbinWatsonTest(linear_mod_log, max.lag=10)
-acf(resid(linear_mod_log))
-bptest(linear_mod_log)
-shapiro.test(resid(linear_mod_log))
-```
- 
-Through the use of polynomial features we slightly improved all the postulates. The errors are centered, normal, and less correlated than before and the model is homoschedastic.
-```{r}
-#Q11
-linear_mod_log_1 = lm(log_rings ~ 1, data=new_abalone_scale)
-anova(linear_mod_log_1, linear_mod_log)
-```
-We implemented the initial linear model on the scaled data. The model explained variance of our model is MSS= 1682.1
 ```{r}
 linear_mod_log_simple = lm(log_rings ~ Height, data=new_abalone_scale)
-anova(linear_mod_log, linear_mod_log_simple)
+anova(linear_mod_log_simple, linear_mod_log)
+
 ```
-we can see that it has a really small p-value and so the removal of the other other covariates results in a worse model. We are testing that all the variables are not correlated with log_rings besides Height. Since the p-value is very low we reject that all the variables are incorrelated and increasing the number of covariates improved our model. 
+we can see that it has a really small p-value and so the removal of the other other covariates results in a worse model. We are testing that all the variables, apart from Height, are not correlated with log_rings. Since the p-value is very low we reject this hypothesis, and conclude that increasing the number of covariates improved our model. 
 
 We can also prove that our last model is better using cross-validation
+
 ```{r}
-library(DAAG) #TO PUT THE LIBRARY AT THE BEGINNING
 cv.lm(new_abalone_scale,log_rings ~ Height + Shell_wt + Shell_wt2 + Shell_wt3 + Shuck_wt + 
     Shuck_wt2 + Diameter2 + Diameter3)
+
 ```
 ```{r}
 cv.lm(new_abalone_scale,log_rings ~ Height)
