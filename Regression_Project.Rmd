@@ -89,7 +89,6 @@ summary(linear_mod)
 
 ```{r}
 #Q5
-
 ggplot(abalone_train, aes(x=Height, y=Rings)) + geom_point(shape=1) + geom_smooth(method=lm)
 
 ```
@@ -250,31 +249,34 @@ To check which variables have a significant impact on the target variable (numbe
 Through the use of polynomial features we slightly improved all the postulates. The errors are centered, normal, and less correlated than before and the model is homokedastic.
 
 ```{r}
+#Q11
 linear_mod_log_simple = lm(log_rings ~ Height, data=new_abalone_scale)
 anova(linear_mod_log_simple, linear_mod_log)
 
 ```
 we can see that it has a really small p-value and so the removal of the other other covariates results in a worse model. We are testing that all the variables, apart from Height, are not correlated with log_rings. Since the p-value is very low we reject this hypothesis, and conclude that increasing the number of covariates improved our model. 
 
-We can also prove that our last model is better using cross-validation
+We can also prove that our last model is better computing the mean of the squared residuals. 
 
 ```{r}
-cv.lm(new_abalone_scale,log_rings ~ Height + Shell_wt + Shell_wt2 + Shell_wt3 + Shuck_wt + 
-    Shuck_wt2 + Diameter2 + Diameter3)
-
+mean(linear_mod_log$residuals^2)
 ```
 ```{r}
-cv.lm(new_abalone_scale,log_rings ~ Height)
+mean(linear_mod_log_simple$residuals^2)
 ```
+
 ```{r}
 #Q12 
-boxplot(filter(new_abalone,Sex=='M')$Rings)
-boxplot(filter(new_abalone,Sex=='F')$Rings)
-ggplot(new_abalone, aes(x=Sex, y=Rings)) + geom_boxplot()
+ggplot(new_abalone_scale, aes(x=Sex, y=Rings)) + geom_boxplot()
 
-#to the ancova for Sex i think we should use ancova function since we fitted the model with multiple regressors not only the categorical variable (Sex) and the output does not show the values just for that regressor
+new_abalone_scale['Infant'] = ifelse(new_abalone_scale$Sex == 'I','I','NI')
+new_abalone_scale$Infant = as.factor(new_abalone_scale$Infant)
 
-anova(linear_mod_new, linear_mod_log)
+linear_mod_log_sex = lm(log_rings ~ poly(Diameter, 3) + Height + poly(Shuck_wt, 3) + poly(Shell_wt, 3) + Infant, data=new_abalone_scale)
+
+anova(linear_mod_log_sex)
 ```
+The null hypothesis is that the variance are the same for the two groups (Infants and no infants). 
+Therefore, as the p-value is very small we reject the null hypothesis indicating that the variance in the two groups is different. And so an hypothetical regression line between the two groups (infant and non infants) is very similar, meaning that there is no interaction between infant and the other covariates. 
 
 
