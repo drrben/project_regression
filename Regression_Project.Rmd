@@ -170,13 +170,22 @@ As the p-value is much less that an hypothetical 0.05 alpha, we reject the null 
 library(ggplot2)
 library(GGally)
 
-ggpairs(new_abalone_train, title="Pairs plot for abalone dataset") + theme_grey(base_size = 8)
+ggpairs(new_abalone_train, title="Pairs plot for abalone dataset",progress = F) #+ theme_grey(base_size = 8)
+```
+```{r}
+library(corrplot)
+withoutSex = new_abalone_train %>% select(!c(Sex))
+corrplot(cor(withoutSex), method = "ellipse")
 ```
 
-```{r}
-new_abalone_scale = rapply(new_abalone_train, scale, c("numeric","integer"), how="replace")
+We decided to keep as dependent variable the logarithm of the number of rings, since we saw that the postulate are more close to being met with this manipulation. First of all, we started fitting a model with all the variables to check those that we need to keep and those that we need to delete. However, we will first remove the point which has a Cook distance greater than 1 (which is the same outlier that we also removed before) and, in addition, we remove also another observation which has a Cook distance between 0.5 an 1. Even if this observation can be left in the model we decided to remove it since it has a big impact on the verification of the postulates. In addition, we need to remove it to have a dataset of a dimension that is the same of the one on which we performed the simple linear model.This last manipulation is necessary in order to perform the Anova and Ancova.
 
-linear_mod_log = lm(log_rings ~ Height + Whole_wt + Length, data=new_abalone_scale)
+
+
+In addition to the Height, the features we have chosen to use in our first model are: Diameter and Whole_wt. As Diameter is highly correlated with Length ( but have a better correlation with log_rings) and Whole_wt is highly correlated with the other three weight features.
+
+```{r}
+linear_mod_log = lm(log_rings ~ Height +Whole_wt + Diameter, data=new_abalone_scale)
 summary(linear_mod_log)
 plot(linear_mod_log)
 durbinWatsonTest(linear_mod_log, max.lag=10)
@@ -184,23 +193,32 @@ acf(resid(linear_mod_log))
 bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
 
-ggplot(new_abalone_train, aes(x=Height, y=log_rings)) + geom_point(shape=1) +geom_smooth(method=lm)
-
 ```
-We decided to keep as dependent variable the logarithm of the number of rings, since we saw that the postulate are more close to being met with this manipulation. First of all, we started fitting a model with all the variables to check those that we need to keep and those that we need to delete. However, we will first remove the point which has a Cook distance greater than 1 (which is the same outlier that we also removed before) and, in addition, we remove also another observation which has a Cook distance between 0.5 an 1. Even if this observation can be left in the model we decided to remove it since it has a big impact on the verification of the postulates. In addition, we need to remove it to have a dataset of a dimension that is the same of the one on which we performed the simple linear model. This last manipulation is necessary in order to perform the Anova and Ancova. 
+This models meets the validity postulates. However, we try another model where we replace Whole_wt by Shuck_wt , Visc_wt and Shell_wt to see if this model better explains the number of rings and to see if one of these features has more impact than the other ones.
 ```{r}
-
-linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Visc_wt + Shell_wt + Length, data=new_abalone_scale)
+linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Visc_wt + Shell_wt + Diameter, data=new_abalone_scale)
 summary(linear_mod_log)
 plot(linear_mod_log)
 durbinWatsonTest(linear_mod_log, max.lag=10)
 acf(resid(linear_mod_log))
 bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
-
-ggplot(new_abalone_train, aes(x=Height, y=log_rings)) + geom_point(shape=1) +geom_smooth(method=lm)
-
 ```
+This models meets the validity postulates. We can reject the null hypothesis for Visc_wt as its p_value= 0.0731 > 5%. So we make a new model without it.
+
+```{r}
+linear_mod_log = lm(log_rings ~ Height + Shuck_wt + Shell_wt + Diameter, data=new_abalone_scale)
+summary(linear_mod_log)
+plot(linear_mod_log)
+durbinWatsonTest(linear_mod_log, max.lag=10)
+acf(resid(linear_mod_log))
+bptest(linear_mod_log)
+shapiro.test(resid(linear_mod_log))
+```
+
+ This models meets the validity postulates. The Adjusted R-squared of this model is 0.5748 > 0.4901 ( Adjusted R-squared of the first model). So we will keep the last model in the following.
+ 
+
 ```{r}
 # To perform transform some variables, add/delete some variables and recheck until acceptable model
 # here we can perform an algorithm to choose the regressors, like checking the R square of all the possible combinations (before / after doing manipulations to meet postulates ? ). or maybe we can do it directly with anova
