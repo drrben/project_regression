@@ -216,7 +216,17 @@ bptest(linear_mod_log)
 shapiro.test(resid(linear_mod_log))
 ```
 
- This models meets the validity postulates. The Adjusted R-squared of this model is 0.5748 > 0.4901 ( Adjusted R-squared of the first model). So we will keep the last model in the following.
+ This models meets the validity postulates. The Adjusted R-squared of this model is 0.5748 > 0.4901 ( Adjusted R-squared of the first model). 
+ 
+```{r}
+linear_mod_log = lm(log_rings ~ poly(Length, 3) + poly(Height, 2) + poly(Shuck_wt, 5) + poly(Shell_wt, 5) + Sex, data=new_abalone_scale)
+summary(linear_mod_log)
+plot(linear_mod_log)
+durbinWatsonTest(linear_mod_log, max.lag=10)
+acf(resid(linear_mod_log))
+bptest(linear_mod_log)
+shapiro.test(resid(linear_mod_log))
+```
  
 
 ```{r}
@@ -229,8 +239,6 @@ shapiro.test(resid(linear_mod_log))
 
 ```{r}
 #Q10
-
-#PUT HERE AGAIN THE SUMMARY OF OUR LAST MODEL OF WE JUST REFER TO PREVIOUS COMPUTATIONS ? 
 summary(linear_mod_log)
 ```
 To check which variables have a significant impact on the target variable (number of rings), we look at the p-values of the t-tests. If the p-value of the single variable is low it means that at a specific significance level the variable has a significant impact on the number of rings. 
